@@ -1,0 +1,5 @@
+uc_coupon.add_form:
+  route_name: uc_coupon.add_form
+  title: 'Add coupon'
+  appears_on:
+    - entity.uc_coupon.collection

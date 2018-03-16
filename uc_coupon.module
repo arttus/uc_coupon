@@ -1,0 +1,282 @@
+<?php
+
+use Drupal\uc_coupon\Entity\Coupon;
+use Drupal\Core\Form\FormStateInterface;
+/**
+ * Handles Coupon component of ubercart
+ *
+ */
+
+
+/**
+ * Implements hook_entity_operation().
+ */
+function uc_coupon_entity_operation(\Drupal\Core\Entity\EntityInterface $entity)
+{
+    $operations = array();
+    
+    if ($entity->getEntityType()->id() == "uc_coupon") {
+        if (!$entity->isActive()) {
+            $operations['enable'] = array(
+                'title' => t('Enable'),
+                'url' => \Drupal\Core\Url::fromRoute('entity.uc_coupon.enable', array(
+                    'uc_coupon' => $entity->id()
+                )),
+                'weight' => 50
+            );
+        } else {
+            $operations['disable'] = array(
+                'title' => t('Disable'),
+                'url' => \Drupal\Core\Url::fromRoute('entity.uc_coupon.disable', array(
+                    'uc_coupon' => $entity->id()
+                )),
+                'weight' => 50
+            );
+        }
+    }
+    return $operations;
+}
+
+/**
+ * Implements hook_form_alter().
+ */
+function uc_coupon_form_alter(&$form, &$form_state, $form_id)
+{
+    switch ($form_id) {
+        case 'uc_cart_view_form':
+            
+            $form['coupon']['code'] = array(
+                '#type' => 'textfield',
+                '#title' => 'Coupon',
+                '#size' => 20
+            );
+            
+            
+            $form['coupon']['apply']   = array(
+                '#type' => 'submit',
+                '#value' => 'Apply',
+                '#submit' => array(
+                    'uc_coupon_apply_coupon'
+                ),
+                '#prefix' => '<div class="coupon-apply">',
+                '#suffix' => '</div>'
+            );
+            $form['coupon']['#prefix'] = '<div class="clearfix coupon-code space-15" id="coupon-apply"><div class="pull-right "><div class="display-flex">';
+            $tempstore                 = \Drupal::service('user.private_tempstore')->get('uc_coupon');
+            $coupon                    = $tempstore->get('coupon');
+            if (is_object($coupon)) {
+                $discount                          = $coupon->getDiscountValue(uc_coupon_get_subtotal()) * -1;
+                $form['coupon']['code']['#prefix'] = '<div class="coupon-code-applied"><b>Coupon: </b>' . $coupon->getCode() . '</div><div class="display-none margin-right">';
+                $form['coupon']['code']['#suffix'] = '</div>';
+                $form['coupon']['remove']          = array(
+                    '#type' => 'submit',
+                    '#value' => 'Remove',
+                    '#submit' => array(
+                        'uc_coupon_remove_coupon'
+                    )
+                );
+                unset($form['coupon']['apply']);
+                $footer = $form['items']['#footer'];
+                
+                $footer[]                 = array(
+                    array(
+                        ''
+                    ),
+                    array(
+                        ''
+                    ),
+                    array(
+                        'data' => array(
+                            '#markup' => 'Discount:'
+                        ),
+                        'colspan' => 2,
+                        'class' => array(
+                            'discount-title'
+                        )
+                    ),
+                    array(
+                        'data' => array(
+                            '#theme' => 'uc_price',
+                            '#price' => $discount
+                        ),
+                        'class' => array(
+                            'price'
+                        )
+                    )
+                );
+                $form['items']['#footer'] = $footer;
+                
+            }
+            $form['coupon']['#suffix']  = '</div></div></div>';
+            $form['coupon']['#weight']  = 2;
+            $form['items']['#weight']   = 1;
+            $form['actions']['#weight'] = 3;
+            
+            break;
+    }
+}
+
+/**
+ * Removes coupon from an order
+ */
+function uc_coupon_remove_coupon($form, $form_state)
+{
+    $tempstore = \Drupal::service('user.private_tempstore')->get('uc_coupon');
+    $coupon    = $tempstore->delete('coupon');
+}
+
+/**
+ * Gets subtotal of order.
+ */
+function uc_coupon_get_subtotal()
+{
+    $cart     = \Drupal::service('uc_cart.manager')->get();
+    $subtotal = 0;
+    foreach ($cart->getContents() as $cart_item) {
+        $item = \Drupal::moduleHandler()->invoke($cart_item->data->module, 'uc_cart_display', array(
+            $cart_item
+        ));
+        $subtotal += $item['#total'];
+    }
+    
+    return $subtotal;
+}
+
+/**
+ * Apply coupon to an order.
+ */
+function uc_coupon_apply_coupon($form, FormStateInterface $form_state)
+{
+    $code = $form_state->getValue('code');
+    if (!$code) {
+        drupal_set_message("Code is empty.", "error");
+    } else {
+        if ($coupon = uc_coupon_is_valid($code)) {
+            
+            drupal_set_message('Coupon ' . $code . ' is applied.');
+            $tempstore = \Drupal::service('user.private_tempstore')->get('uc_coupon');
+            $tempstore->set('coupon', $coupon);
+        } else {
+            drupal_set_message("Coupon is invalid", "error");
+        }
+        
+    }
+    return $form['coupon'];
+}
+
+/**
+ * Gets the discount amount of an order.
+ */
+function uc_coupon_get_discount($coupon_code, $order)
+{
+    if ($coupon = uc_coupon_is_valid($coupon_code)) {
+        return $coupon->getDiscountValue($total);
+    }
+    return false;
+}
+
+/**
+ * Checks if coupon is valid.
+ */
+function uc_coupon_is_valid($coupon_code)
+{
+    $query = db_query("SELECT * FROM {uc_coupons} where code = '" . $coupon_code . "' and status=1");
+    foreach ($query as $q) {
+        $coupon = Coupon::load($q->id);
+        return $coupon;
+    }
+    
+    return false;
+    
+}
+
+/**
+ * Checks if order already has a coupon.
+ */
+function uc_coupon_order_has_coupon($order)
+{
+    if (is_array($order->line_items)) {
+        foreach ($order->line_items as $i => $line) {
+            if ($line['type'] == 'coupon') {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+/**
+ * Gets the coupon of an order.
+ */
+function uc_coupon_get_order_coupon($order)
+{
+    $tempstore = \Drupal::service('user.private_tempstore')->get('uc_coupon');
+    $coupon    = $tempstore->get('coupon');
+    
+    return $coupon;
+}
+
+/**
+ * Implements hook_uc_order_update().
+ */
+function uc_coupon_uc_order_update($order)
+{
+    $added = false;
+    
+    
+    if (!uc_coupon_order_has_coupon($order)) {
+        $coupon = uc_coupon_get_order_coupon($order);
+        if ($coupon) {
+            $discount = $coupon->getDiscountValue($order->getSubtotal());
+            if (is_array($order->line_items)) {
+                foreach ($order->line_items as $i => $line) {
+                    if ($line['type'] == 'coupon') {
+                        $added = true;
+                        break;
+                    }
+                }
+            }
+            
+            if (!$added) {
+                $order->line_items[] = uc_order_line_item_add($order->id(), 'coupon', 'Coupon Discount', $discount * -1);
+                usort($order->line_items, 'Drupal\Component\Utility\SortArray::sortByWeightElement');
+                
+                
+            }
+        }
+    } else {
+        $coupon = uc_coupon_get_order_coupon($order);
+        if (!$coupon) {
+            foreach ($order->line_items as $i => $line) {
+                if ($line['type'] == "coupon") {
+                    uc_order_delete_line_item($line['line_item_id']);
+                    unset($order->line_items[$i]);
+                }
+            }
+        }
+    }
+    
+}
+
+/**
+ * Implements hook_uc_cart_checkout_start().
+ */
+function uc_coupon_uc_cart_checkout_start($order)
+{
+    $updated   = false;
+    $tempstore = \Drupal::service('user.private_tempstore')->get('uc_coupon');
+    $coupon    = $tempstore->get('coupon');
+    if ($coupon) {
+        uc_coupon_uc_order_update($order);
+    }
+    
+}
+
+/**
+ * Implements hook_uc_checkout_complete().
+ */
+function uc_coupon_uc_checkout_complete($order, $account)
+{
+    $tempstore = \Drupal::service('user.private_tempstore')->get('uc_coupon');
+    $coupon    = $tempstore->delete('coupon');
+}

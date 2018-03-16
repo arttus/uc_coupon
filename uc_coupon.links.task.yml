@@ -1,0 +1,4 @@
+entity.uc_coupon.collection:
+  route_name: entity.uc_coupon.collection
+  base_route: entity.uc_coupon.collection
+  title: Coupon

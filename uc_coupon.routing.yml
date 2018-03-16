@@ -1,0 +1,55 @@
+entity.uc_coupon.canonical:
+  path: '/admin/store/coupon/{uc_coupon}'
+  defaults:
+    _entity_view: 'uc_coupon'
+    _title: 'Coupon'
+  requirements:
+   _permission: 'access administration pages'
+
+entity.uc_coupon.collection:
+  path: '/admin/store/coupons'
+  defaults:
+    _entity_list: 'uc_coupon'
+    _title: 'Coupons'
+  requirements:
+    _permission: 'access administration pages'
+uc_coupon.add_form:
+  path: '/admin/store/coupon/add'
+  defaults:
+    _entity_form: uc_coupon.add
+    _title: 'Add coupon'
+  requirements:
+    _permission: 'administer store'
+entity.uc_coupon.edit_form:
+  path: '/admin/store/coupon/{uc_coupon}/edit'
+  defaults:
+    _entity_form: 'uc_coupon.edit'
+    _title: 'Edit coupon'
+  requirements:
+    _permission: 'administer store'
+
+entity.uc_coupon.enable:
+  path: '/admin/store/coupon/{uc_coupon}/enable'
+  defaults:
+    _controller: '\Drupal\uc_coupon\Controller\CouponController::performOperation'
+    op: 'enable'
+  requirements:
+    _permission: 'administer store'
+    _csrf_token: 'TRUE'
+
+entity.uc_coupon.disable:
+  path: '/admin/store/coupon/{uc_coupon}/disable'
+  defaults:
+    _controller: '\Drupal\uc_coupon\Controller\CouponController::performOperation'
+    op: 'disable'
+  requirements:
+    _permission: 'administer store'
+    _csrf_token: 'TRUE'
+
+entity.uc_coupon.delete_form:
+  path: '/admin/store/coupon/{uc_coupon}/delete'
+  defaults:
+    _entity_form: 'uc_coupon.delete'
+    _title: 'Delete'
+  requirements:
+    _permission: 'administer store'

@@ -1,0 +1,5 @@
+uc_coupon.admin.store.coupon:
+  title: 'Coupons'
+  description: 'Choose and configure available coupon.'
+  route_name: entity.uc_coupon.collection
+  parent: uc_store.admin.store
